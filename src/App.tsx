@@ -20,39 +20,132 @@ interface Version {
   timestamp: string;
 }
 
-function App() {
-  const CURRENT_VERSION_KEY = "currentVersion";
-  const VERSION_KEY_PREFIX = "data-version-";
-  // const [count, setCount] = useState(0);
-  const [versions, setVersions] = useState<Map<string, Version>>(new Map());
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
-  const syncLocalStorage = () => {
-    if (localStorage.getItem(CURRENT_VERSION_KEY) == null) {
-      initializeLocalStorage();
-    }
-    const currentVersion = localStorage.getItem(CURRENT_VERSION_KEY);
-    const versions = new Map(
-      Object.entries(localStorage).flatMap(([k, v]: [string, string]) => {
-        if (k.startsWith(VERSION_KEY_PREFIX)) {
-          return [[k, JSON.parse(v)]];
-        } else {
-          return [];
-        }
-      })
-    );
-    setVersions(versions);
-    setCurrentVersion(currentVersion);
+function objectToVersion(o: any): Version {
+  return {
+    items: o.items,
+    previousVersion: o.previousVersion,
+    timestamp: o.timestamp,
   };
+}
+
+function versionToObject(v: Version): any {
+  return {
+    items: v.items,
+    previousVersion: v.previousVersion,
+    timestamp: v.timestamp,
+  };
+}
+
+const CURRENT_SHA_KEY = "current-sha";
+const VERSION_KEY_PREFIX = "data-version-";
+
+function getTableRows() {
+  const currentSha = localStorage.getItem(CURRENT_SHA_KEY);
+  if (currentSha == null) {
+    return;
+  }
+  const currentVersionRaw = localStorage.getItem(
+    VERSION_KEY_PREFIX + currentSha
+  );
+  if (currentVersionRaw == null) {
+    return;
+  }
+  const currentVersion = objectToVersion(JSON.parse(currentVersionRaw));
+  const tableRows = Array.from(currentVersion.items.entries()).map(
+    ([name, item]) => (
+      <TableRow>
+        <TableCell className="font-medium">{name}</TableCell>
+        <TableCell>{item.quantity}</TableCell>
+        <TableCell>{item.tags}</TableCell>
+        <TableCell className="whitespace-nowrap">
+          <Button>Edit</Button>
+          <Button className="ml-2">Delete</Button>
+        </TableCell>
+      </TableRow>
+    )
+  );
+  return tableRows;
+}
+
+function ItemInputRow(onSave: () => void, onCancel: () => void) {
+  const [itemName, setItemName] = useState<string>("");
+  const [itemQuantity, setItemQuantity] = useState<string>("");
+  const [itemTags, setItemTags] = useState<string>("");
+  return (
+    <TableRow>
+      <TableCell>
+        <input
+          type="text"
+          className="border-2 rounded-xs border-gray-500"
+          onChange={(e) => {
+            setItemName(e.target.value);
+          }}
+        />
+      </TableCell>
+      <TableCell>
+        <input
+          type="text"
+          className="border-2 rounded-xs border-gray-500"
+          onChange={(e) => {
+            setItemQuantity(e.target.value);
+          }}
+        />
+      </TableCell>
+      <TableCell>
+        <input
+          type="text"
+          className="border-2 rounded-xs border-gray-500"
+          onChange={(e) => {
+            setItemTags(e.target.value);
+          }}
+        />
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        <Button onClick={onSave}>Save</Button>
+        <Button onClick={onCancel} className="ml-2">
+          Cancel
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+function App() {
+  // dummy state variable to trigger re-render when needed
+  const [_, setCounter] = useState<number>(0);
+  const [isAddingItem, setIsAddingItem] = useState<boolean>(false);
+  const updateCounter = () => setCounter((c) => c + 1);
   useEffect(() => {
-    window.addEventListener("storage", syncLocalStorage);
+    window.addEventListener("storage", updateCounter);
     return () => {
-      window.removeEventListener("storage", syncLocalStorage);
+      window.removeEventListener("storage", updateCounter);
     };
   }, []);
+  /*
+  const currentVersion = localStorage.getItem(CURRENT_VERSION_KEY);
+  const versions = new Map(
+    Object.entries(localStorage).flatMap(([k, v]: [string, string]) => {
+      if (k.startsWith(VERSION_KEY_PREFIX)) {
+        return [[k, objectToVersion(JSON.parse(v))]];
+      } else {
+        return [];
+      }
+    })
+  );*/
+
   return (
     <>
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-center">Item Console</h1>
+        <h1 className="text-3xl font-bold text-center mb-5">Item Console</h1>
+        <div className="flex m-2">
+          <Button
+            onClick={() => {
+              console.log("Hello world");
+              setIsAddingItem(true);
+            }}
+          >
+            Add Item
+          </Button>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -63,38 +156,10 @@ function App() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell>
-                INV00oeuoueoeu asoeuhasoeu snthaoeuouoauoa aoeaoueoaueoaue1
-              </TableCell>
-              <TableCell>Paid</TableCell>
-              <TableCell className="whitespace-break-spaces">
-                Credit santeuohs snathoues snthaoeusnt s aoeuntshaosuetnh
-                snthaoeustnh ouesnthsntoaehusnth snoethust Card
-              </TableCell>
-              <TableCell className="whitespace-nowrap">
-                <Button>Edit</Button>
-                <Button className="m-2">Delete</Button>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">INV001</TableCell>
-              <TableCell>Paid</TableCell>
-              <TableCell>Credit Card</TableCell>
-              <TableCell className="text-right">$250.00</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">INV001</TableCell>
-              <TableCell>Paid</TableCell>
-              <TableCell>Credit Card</TableCell>
-              <TableCell className="text-right">$250.00</TableCell>
-            </TableRow>
+            <ItemInputRow />
+            {getTableRows()}
           </TableBody>
         </Table>
-
-        <p>Hello world</p>
-
-        <p className="text-red-500">Hello world</p>
       </div>
     </>
   );

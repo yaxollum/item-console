@@ -8,21 +8,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { sha256 } from "js-sha256";
 
 interface Item {
   quantity: number;
-  tags: [string];
+  tags: string[];
 }
 
 interface Version {
   items: Map<string, Item>;
-  previousVersion: string;
+  previousVersion: string | null;
   timestamp: string;
 }
 
 function objectToVersion(o: any): Version {
   return {
-    items: o.items,
+    items: new Map(Object.entries(o.items)),
     previousVersion: o.previousVersion,
     timestamp: o.timestamp,
   };
@@ -30,10 +31,18 @@ function objectToVersion(o: any): Version {
 
 function versionToObject(v: Version): any {
   return {
-    items: v.items,
+    items: Object.fromEntries(v.items.entries()),
     previousVersion: v.previousVersion,
     timestamp: v.timestamp,
   };
+}
+
+function stringToVersion(s: string): Version {
+  return objectToVersion(JSON.parse(s));
+}
+
+function versionToString(v: Version): string {
+  return JSON.stringify(versionToObject(v));
 }
 
 const CURRENT_SHA_KEY = "current-sha";
@@ -50,7 +59,7 @@ function getTableRows() {
   if (currentVersionRaw == null) {
     return;
   }
-  const currentVersion = objectToVersion(JSON.parse(currentVersionRaw));
+  const currentVersion = stringToVersion(currentVersionRaw);
   const tableRows = Array.from(currentVersion.items.entries()).map(
     ([name, item]) => (
       <TableRow>
@@ -65,6 +74,70 @@ function getTableRows() {
     )
   );
   return tableRows;
+}
+
+function getAllVersions(): Map<string, Version> {
+  return new Map(
+    Object.entries(localStorage).flatMap(([k, v]: [string, string]) => {
+      if (k.startsWith(VERSION_KEY_PREFIX)) {
+        return [[k, stringToVersion(v)]];
+      } else {
+        return [];
+      }
+    })
+  );
+}
+
+function makeVersion(
+  items: Map<string, Item>,
+  previousVersion: string | null
+): [Version, string] {
+  const obj = {
+    items: items,
+    previousVersion: previousVersion,
+    timestamp: new Date().toISOString(),
+  };
+  const hash = sha256(versionToString(obj));
+  return [obj, hash];
+}
+
+function makeExampleVersion(): [Version, string] {
+  return makeVersion(
+    new Map([
+      [
+        "Example Item",
+        { quantity: 2, tags: ["example tag", "another example tag"] },
+      ],
+    ]),
+    null
+  );
+}
+
+function initLocalStorage(): void {
+  const allVersions = getAllVersions();
+  if (allVersions.size == 0) {
+    const [newVersion, hash] = makeExampleVersion();
+    localStorage.setItem(
+      VERSION_KEY_PREFIX + hash,
+      versionToString(newVersion)
+    );
+    initLocalStorage();
+    return;
+  }
+  const currentSha = localStorage.getItem(CURRENT_SHA_KEY);
+  if (currentSha == null || localStorage.getItem(currentSha) == null) {
+    // if current SHA does not exist or points to a non-existent version
+    // set it to the version with the latest timestamp
+    localStorage.setItem(
+      CURRENT_SHA_KEY,
+      Array.from(allVersions.entries())
+        .sort(
+          ([_k1, v1], [_k2, v2]) =>
+            Date.parse(v1.timestamp) - Date.parse(v2.timestamp)
+        )[0][0]
+        .slice(VERSION_KEY_PREFIX.length)
+    );
+  }
 }
 
 function ItemInputRow({
@@ -133,6 +206,9 @@ function App() {
       window.removeEventListener("storage", updateCounter);
     };
   }, []);
+  useEffect(() => {
+    initLocalStorage();
+  });
   /*
   const currentVersion = localStorage.getItem(CURRENT_VERSION_KEY);
   const versions = new Map(

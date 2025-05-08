@@ -67,7 +67,13 @@ function getTableRows() {
   return tableRows;
 }
 
-function ItemInputRow(onSave: () => void, onCancel: () => void) {
+function ItemInputRow({
+  onSave,
+  onCancel,
+}: {
+  onSave: (itemName: string, itemQuantity: number, itemTags: string) => void;
+  onCancel: () => void;
+}) {
   const [itemName, setItemName] = useState<string>("");
   const [itemQuantity, setItemQuantity] = useState<string>("");
   const [itemTags, setItemTags] = useState<string>("");
@@ -101,7 +107,14 @@ function ItemInputRow(onSave: () => void, onCancel: () => void) {
         />
       </TableCell>
       <TableCell className="whitespace-nowrap">
-        <Button onClick={onSave}>Save</Button>
+        <Button
+          onClick={() => {
+            const q = Number.parseInt(itemQuantity);
+            onSave(itemName, q >= 0 ? q : 1, itemTags);
+          }}
+        >
+          Save
+        </Button>
         <Button onClick={onCancel} className="ml-2">
           Cancel
         </Button>
@@ -156,7 +169,16 @@ function App() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <ItemInputRow />
+            {isAddingItem && (
+              <ItemInputRow
+                onSave={(name, quantity, tags) => {
+                  console.log(`${name} ${quantity} ${tags}`);
+                }}
+                onCancel={() => {
+                  setIsAddingItem(false);
+                }}
+              />
+            )}
             {getTableRows()}
           </TableBody>
         </Table>

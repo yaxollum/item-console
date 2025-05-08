@@ -45,21 +45,29 @@ function versionToString(v: Version): string {
   return JSON.stringify(versionToObject(v));
 }
 
+function commaSeparatedToArray(str: string): string[] {
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 const CURRENT_SHA_KEY = "current-sha";
 const VERSION_KEY_PREFIX = "data-version-";
 
-function getTableRows() {
-  const currentSha = localStorage.getItem(CURRENT_SHA_KEY);
-  if (currentSha == null) {
-    return;
-  }
+function getOrCreateCurrentVersion(): [Version, string] {
+  window.abcd = getOrCreateCurrentVersion;
+  initLocalStorage();
+  const currentSha = localStorage.getItem(CURRENT_SHA_KEY)!;
   const currentVersionRaw = localStorage.getItem(
     VERSION_KEY_PREFIX + currentSha
-  );
-  if (currentVersionRaw == null) {
-    return;
-  }
+  )!;
   const currentVersion = stringToVersion(currentVersionRaw);
+  return [currentVersion, currentSha];
+}
+
+function getTableRows() {
+  const currentVersion = getOrCreateCurrentVersion()[0];
   const tableRows = Array.from(currentVersion.items.entries()).map(
     ([name, item]) => (
       <TableRow>
@@ -91,17 +99,15 @@ function getAllVersions(): Map<string, Version> {
 function makeVersion(
   items: Map<string, Item>,
   previousVersion: string | null
-): [Version, string] {
-  const obj = {
+): Version {
+  return {
     items: items,
     previousVersion: previousVersion,
     timestamp: new Date().toISOString(),
   };
-  const hash = sha256(versionToString(obj));
-  return [obj, hash];
 }
 
-function makeExampleVersion(): [Version, string] {
+function makeExampleVersion(): Version {
   return makeVersion(
     new Map([
       [
@@ -113,19 +119,25 @@ function makeExampleVersion(): [Version, string] {
   );
 }
 
+function writeVersionToLocalStorage(v: Version): void {
+  const versionString = versionToString(v);
+  const hash = sha256(versionString);
+  localStorage.setItem(VERSION_KEY_PREFIX + hash, versionString);
+  localStorage.setItem(CURRENT_SHA_KEY, hash);
+}
+
 function initLocalStorage(): void {
   const allVersions = getAllVersions();
   if (allVersions.size == 0) {
-    const [newVersion, hash] = makeExampleVersion();
-    localStorage.setItem(
-      VERSION_KEY_PREFIX + hash,
-      versionToString(newVersion)
-    );
+    writeVersionToLocalStorage(makeExampleVersion());
     initLocalStorage();
     return;
   }
   const currentSha = localStorage.getItem(CURRENT_SHA_KEY);
-  if (currentSha == null || localStorage.getItem(currentSha) == null) {
+  if (
+    currentSha == null ||
+    localStorage.getItem(VERSION_KEY_PREFIX + currentSha) == null
+  ) {
     // if current SHA does not exist or points to a non-existent version
     // set it to the version with the latest timestamp
     localStorage.setItem(
@@ -144,7 +156,7 @@ function ItemInputRow({
   onSave,
   onCancel,
 }: {
-  onSave: (itemName: string, itemQuantity: number, itemTags: string) => void;
+  onSave: (itemName: string, item: Item) => void;
   onCancel: () => void;
 }) {
   const [itemName, setItemName] = useState<string>("");
@@ -183,7 +195,10 @@ function ItemInputRow({
         <Button
           onClick={() => {
             const q = Number.parseInt(itemQuantity);
-            onSave(itemName, q >= 0 ? q : 1, itemTags);
+            onSave(itemName, {
+              quantity: q >= 0 ? q : 1,
+              tags: commaSeparatedToArray(itemTags),
+            });
           }}
         >
           Save
@@ -206,20 +221,6 @@ function App() {
       window.removeEventListener("storage", updateCounter);
     };
   }, []);
-  useEffect(() => {
-    initLocalStorage();
-  });
-  /*
-  const currentVersion = localStorage.getItem(CURRENT_VERSION_KEY);
-  const versions = new Map(
-    Object.entries(localStorage).flatMap(([k, v]: [string, string]) => {
-      if (k.startsWith(VERSION_KEY_PREFIX)) {
-        return [[k, objectToVersion(JSON.parse(v))]];
-      } else {
-        return [];
-      }
-    })
-  );*/
 
   return (
     <>
@@ -247,8 +248,24 @@ function App() {
           <TableBody>
             {isAddingItem && (
               <ItemInputRow
-                onSave={(name, quantity, tags) => {
-                  console.log(`${name} ${quantity} ${tags}`);
+                onSave={(name, item) => {
+                  const [currentVersion, currentSha] =
+                    getOrCreateCurrentVersion();
+                  const currentItems = currentVersion.items;
+                  console.log(
+                    currentItems,
+                    name,
+                    currentItems.has(name),
+                    Array.from(currentItems.entries())
+                  );
+                  if (currentItems.has(name)) {
+                    alert(`Item with name "${name}" already exists.`);
+                    return;
+                  }
+                  currentItems.set(name, item);
+                  writeVersionToLocalStorage(
+                    makeVersion(currentItems, currentSha)
+                  );
                 }}
                 onCancel={() => {
                   setIsAddingItem(false);

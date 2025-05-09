@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -174,27 +175,27 @@ function ItemInputRow({
   return (
     <TableRow>
       <TableCell>
-        <input
+        <Input
           type="text"
-          className="border-2 rounded-xs border-gray-500"
+          placeholder="Item name"
           onChange={(e) => {
             setItemName(e.target.value);
           }}
         />
       </TableCell>
       <TableCell>
-        <input
-          type="text"
-          className="border-2 rounded-xs border-gray-500"
+        <Input
+          type="number"
+          placeholder="Quantity"
           onChange={(e) => {
             setItemQuantity(e.target.value);
           }}
         />
       </TableCell>
       <TableCell>
-        <input
+        <Input
           type="text"
-          className="border-2 rounded-xs border-gray-500"
+          placeholder="Tags (separated by commas)"
           onChange={(e) => {
             setItemTags(e.target.value);
           }}

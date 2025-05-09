@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "./components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -148,9 +155,11 @@ function ItemRow({
 }
 
 function getItemRows({
+  items,
   onDelete,
   onSave,
 }: {
+  items: Map<string, Item>;
   onDelete: (itemName: string) => void;
   onSave: (
     originalItemName: string,
@@ -158,8 +167,7 @@ function getItemRows({
     item: Item
   ) => boolean;
 }) {
-  const currentVersion = getOrCreateCurrentVersion()[0];
-  const tableRows = Array.from(currentVersion.items.entries())
+  const tableRows = Array.from(items.entries())
     .sort(([name1, _item1], [name2, _item2]) => name1.localeCompare(name2))
     .map(([name, item]) => (
       <ItemRow
@@ -367,6 +375,9 @@ function App() {
   // dummy state variable to trigger re-render when needed
   const [_, setCounter] = useState<number>(0);
   const [isAddingItem, setIsAddingItem] = useState<boolean>(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [isFilteringByTag, setIsFilteringByTag] = useState<boolean>(false);
+
   const updateCounter = () => setCounter((c) => c + 1);
   useEffect(() => {
     window.addEventListener("storage", updateCounter);
@@ -375,19 +386,80 @@ function App() {
     };
   }, []);
 
+  const currentVersionItems = getOrCreateCurrentVersion()[0].items;
+  const currentVersionTags = Array.from(
+    new Set(
+      Array.from(currentVersionItems.values()).flatMap((item) => item.tags)
+    )
+  ).sort();
+  const filteredItems =
+    tagFilter != null
+      ? new Map(
+          Array.from(currentVersionItems.entries()).filter(([_k, v]) =>
+            v.tags.includes(tagFilter)
+          )
+        )
+      : currentVersionItems;
   return (
     <>
       <div className="px-4 py-6 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-center mb-5">Item Console</h1>
-        <div className="flex m-2">
+        <div className="flex m-2 gap-2">
           <Button
             onClick={() => {
               setIsAddingItem(true);
             }}
           >
-            Add Item
+            Add item
           </Button>
+          {!isFilteringByTag && (
+            <Button
+              onClick={() => {
+                setIsFilteringByTag(true);
+                setTagFilter(null);
+              }}
+            >
+              Filter by tag
+            </Button>
+          )}
         </div>
+        {isFilteringByTag && (
+          <>
+            <div className="flex m-2 gap-2 items-center">
+              <span>Filter by tag:</span>
+              <Select
+                onValueChange={(s) => {
+                  setTagFilter(s);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select a tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentVersionTags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => {
+                  setIsFilteringByTag(false);
+                  setTagFilter(null);
+                }}
+              >
+                Clear filter
+              </Button>
+            </div>
+            {tagFilter != null && (
+              <p className="m-2">
+                Found {filteredItems.size} item
+                {filteredItems.size == 1 ? "" : "s"} with tag "{tagFilter}"
+              </p>
+            )}
+          </>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
@@ -414,6 +486,7 @@ function App() {
               />
             )}
             {getItemRows({
+              items: filteredItems,
               onSave: (originalItemName, newItemName, item) => {
                 if (
                   writeItemToLocalStorage(originalItemName, newItemName, item)

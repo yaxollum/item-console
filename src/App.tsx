@@ -66,28 +66,96 @@ function getOrCreateCurrentVersion(): [Version, string] {
   return [currentVersion, currentSha];
 }
 
-function getTableRows() {
+function ItemDisplayRow({
+  onEdit,
+  onDelete,
+  name,
+  item,
+}: {
+  onEdit: () => void;
+  onDelete: (itemName: string) => void;
+  name: string;
+  item: Item;
+}) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{name}</TableCell>
+      <TableCell>{item.quantity}</TableCell>
+      <TableCell>
+        {item.tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-block rounded-full bg-chart-3 py-1 px-2 m-1 text-primary-foreground"
+          >
+            {tag}
+          </span>
+        ))}
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        <Button onClick={onEdit}>Edit</Button>
+        <Button onClick={() => onDelete(name)} className="ml-2">
+          Delete
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function ItemRow({
+  onDelete,
+  onSave,
+  name,
+  item,
+}: {
+  onDelete: (itemName: string) => void;
+  onSave: (itemName: string, item: Item) => void;
+  name: string;
+  item: Item;
+}) {
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  if (isEditing) {
+    return (
+      <ItemInputRow
+        initialItemName={name}
+        initialItemQuantity={item.quantity}
+        initialItemTags={item.tags}
+        onSave={onSave}
+        onCancel={() => {
+          setIsEditing(false);
+        }}
+      />
+    );
+  } else {
+    return (
+      <ItemDisplayRow
+        onEdit={() => {
+          setIsEditing(true);
+        }}
+        onDelete={onDelete}
+        name={name}
+        item={item}
+      />
+    );
+  }
+}
+
+function getItemRows({
+  onDelete,
+  onSave,
+}: {
+  onDelete: (itemName: string) => void;
+  onSave: (itemName: string, item: Item) => void;
+}) {
   const currentVersion = getOrCreateCurrentVersion()[0];
   const tableRows = Array.from(currentVersion.items.entries()).map(
     ([name, item]) => (
-      <TableRow key={name}>
-        <TableCell className="font-medium">{name}</TableCell>
-        <TableCell>{item.quantity}</TableCell>
-        <TableCell>
-          {item.tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-block rounded-full bg-chart-3 py-1 px-2 m-1 text-primary-foreground"
-            >
-              {tag}
-            </span>
-          ))}
-        </TableCell>
-        <TableCell className="whitespace-nowrap">
-          <Button>Edit</Button>
-          <Button className="ml-2">Delete</Button>
-        </TableCell>
-      </TableRow>
+      <ItemRow
+        key={name}
+        onSave={onSave}
+        onDelete={onDelete}
+        name={name}
+        item={item}
+      />
     )
   );
   return tableRows;
@@ -163,21 +231,30 @@ function initLocalStorage(): void {
 }
 
 function ItemInputRow({
+  initialItemName,
+  initialItemQuantity,
+  initialItemTags,
   onSave,
   onCancel,
 }: {
+  initialItemName: string;
+  initialItemQuantity: number;
+  initialItemTags: string[];
   onSave: (itemName: string, item: Item) => void;
   onCancel: () => void;
 }) {
-  const [itemName, setItemName] = useState<string>("");
-  const [itemQuantity, setItemQuantity] = useState<string>("");
-  const [itemTags, setItemTags] = useState<string>("");
+  const [itemName, setItemName] = useState<string>(initialItemName);
+  const [itemQuantity, setItemQuantity] = useState<string>(
+    initialItemQuantity.toString()
+  );
+  const [itemTags, setItemTags] = useState<string>(initialItemTags.join());
   return (
     <TableRow>
       <TableCell>
         <Input
           type="text"
           placeholder="Item name"
+          value={itemName}
           onChange={(e) => {
             setItemName(e.target.value);
           }}
@@ -187,6 +264,7 @@ function ItemInputRow({
         <Input
           type="number"
           placeholder="Quantity"
+          value={itemQuantity}
           onChange={(e) => {
             setItemQuantity(e.target.value);
           }}
@@ -196,6 +274,7 @@ function ItemInputRow({
         <Input
           type="text"
           placeholder="Tags (separated by commas)"
+          value={itemTags}
           onChange={(e) => {
             setItemTags(e.target.value);
           }}
@@ -220,6 +299,31 @@ function ItemInputRow({
     </TableRow>
   );
 }
+
+function writeItemToLocalStorage(name: string, item: Item) {
+  const [currentVersion, currentSha] = getOrCreateCurrentVersion();
+  const currentItems = currentVersion.items;
+  console.log(
+    currentItems,
+    name,
+    currentItems.has(name),
+    Array.from(currentItems.entries())
+  );
+  if (currentItems.has(name)) {
+    alert(`Item with name "${name}" already exists.`);
+    return;
+  }
+  currentItems.set(name, item);
+  writeVersionToLocalStorage(makeVersion(currentItems, currentSha));
+}
+
+function deleteItemFromLocalStorage(name: string) {
+  const [currentVersion, currentSha] = getOrCreateCurrentVersion();
+  const currentItems = currentVersion.items;
+  currentItems.delete(name);
+  writeVersionToLocalStorage(makeVersion(currentItems, currentSha));
+}
+
 function App() {
   // dummy state variable to trigger re-render when needed
   const [_, setCounter] = useState<number>(0);
@@ -257,24 +361,11 @@ function App() {
           <TableBody>
             {isAddingItem && (
               <ItemInputRow
+                initialItemName=""
+                initialItemQuantity={1}
+                initialItemTags={[]}
                 onSave={(name, item) => {
-                  const [currentVersion, currentSha] =
-                    getOrCreateCurrentVersion();
-                  const currentItems = currentVersion.items;
-                  console.log(
-                    currentItems,
-                    name,
-                    currentItems.has(name),
-                    Array.from(currentItems.entries())
-                  );
-                  if (currentItems.has(name)) {
-                    alert(`Item with name "${name}" already exists.`);
-                    return;
-                  }
-                  currentItems.set(name, item);
-                  writeVersionToLocalStorage(
-                    makeVersion(currentItems, currentSha)
-                  );
+                  writeItemToLocalStorage(name, item);
                   setIsAddingItem(false);
                 }}
                 onCancel={() => {
@@ -282,7 +373,16 @@ function App() {
                 }}
               />
             )}
-            {getTableRows()}
+            {getItemRows({
+              onSave: (name, item) => {
+                writeItemToLocalStorage(name, item);
+                updateCounter();
+              },
+              onDelete: (name) => {
+                deleteItemFromLocalStorage(name);
+                updateCounter();
+              },
+            })}
           </TableBody>
         </Table>
       </div>

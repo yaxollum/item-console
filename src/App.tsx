@@ -264,12 +264,12 @@ function ItemInputRow({
   useEffect(() => {
     itemNameRef.current?.focus();
   }, []);
-  const saveItem = () => {
+  const getItem: () => Item = () => {
     const q = Number.parseInt(itemQuantity);
-    onSave(itemName, {
-      quantity: q >= 0 ? q : 1,
-      tags: commaSeparatedToArray(itemTags),
-    });
+    return { quantity: q >= 0 ? q : 1, tags: commaSeparatedToArray(itemTags) };
+  };
+  const saveItem = () => {
+    onSave(itemName, getItem());
   };
   const listenForEnter = (e: any) => {
     if (e.key == "Enter") {
@@ -313,7 +313,19 @@ function ItemInputRow({
         />
       </TableCell>
       <TableCell className="whitespace-nowrap">
-        <Button onClick={saveItem}>Save</Button>
+        <Button
+          disabled={(() => {
+            const item = getItem();
+            return (
+              itemName == initialItemName &&
+              item.quantity == initialItemQuantity &&
+              JSON.stringify(item.tags) == JSON.stringify(initialItemTags)
+            );
+          })()}
+          onClick={saveItem}
+        >
+          Save
+        </Button>
         <Button onClick={onCancel} className="ml-2">
           Cancel
         </Button>

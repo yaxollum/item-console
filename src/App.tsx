@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "./components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -259,7 +259,23 @@ function ItemInputRow({
   const [itemQuantity, setItemQuantity] = useState<string>(
     initialItemQuantity.toString()
   );
+  const itemNameRef = useRef<HTMLInputElement>(null);
   const [itemTags, setItemTags] = useState<string>(initialItemTags.join(", "));
+  useEffect(() => {
+    itemNameRef.current?.focus();
+  }, []);
+  const saveItem = () => {
+    const q = Number.parseInt(itemQuantity);
+    onSave(itemName, {
+      quantity: q >= 0 ? q : 1,
+      tags: commaSeparatedToArray(itemTags),
+    });
+  };
+  const listenForEnter = (e: any) => {
+    if (e.key == "Enter") {
+      saveItem();
+    }
+  };
   return (
     <TableRow>
       <TableCell>
@@ -270,6 +286,8 @@ function ItemInputRow({
           onChange={(e) => {
             setItemName(e.target.value);
           }}
+          onKeyUp={listenForEnter}
+          ref={itemNameRef}
         />
       </TableCell>
       <TableCell>
@@ -280,6 +298,7 @@ function ItemInputRow({
           onChange={(e) => {
             setItemQuantity(e.target.value);
           }}
+          onKeyUp={listenForEnter}
         />
       </TableCell>
       <TableCell>
@@ -290,20 +309,11 @@ function ItemInputRow({
           onChange={(e) => {
             setItemTags(e.target.value);
           }}
+          onKeyUp={listenForEnter}
         />
       </TableCell>
       <TableCell className="whitespace-nowrap">
-        <Button
-          onClick={() => {
-            const q = Number.parseInt(itemQuantity);
-            onSave(itemName, {
-              quantity: q >= 0 ? q : 1,
-              tags: commaSeparatedToArray(itemTags),
-            });
-          }}
-        >
-          Save
-        </Button>
+        <Button onClick={saveItem}>Save</Button>
         <Button onClick={onCancel} className="ml-2">
           Cancel
         </Button>

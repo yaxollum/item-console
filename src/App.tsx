@@ -69,12 +69,15 @@ function getTableRows() {
   const currentVersion = getOrCreateCurrentVersion()[0];
   const tableRows = Array.from(currentVersion.items.entries()).map(
     ([name, item]) => (
-      <TableRow>
+      <TableRow key={name}>
         <TableCell className="font-medium">{name}</TableCell>
         <TableCell>{item.quantity}</TableCell>
         <TableCell>
           {item.tags.map((tag) => (
-            <span className="inline-block rounded-full bg-chart-3 py-1 px-2 m-1 text-primary-foreground">
+            <span
+              key={tag}
+              className="inline-block rounded-full bg-chart-3 py-1 px-2 m-1 text-primary-foreground"
+            >
               {tag}
             </span>
           ))}
@@ -114,11 +117,12 @@ function makeVersion(
 
 function makeExampleVersion(): Version {
   return makeVersion(
-    new Map([
+    new Map<string, Item>([
       [
         "Example Item",
         { quantity: 2, tags: ["example tag", "another example tag"] },
       ],
+      ["Example Item #2", { quantity: 20, tags: ["example tag"] }],
     ]),
     null
   );

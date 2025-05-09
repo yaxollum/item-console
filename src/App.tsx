@@ -108,7 +108,11 @@ function ItemRow({
   item,
 }: {
   onDelete: (itemName: string) => void;
-  onSave: (itemName: string, item: Item) => void;
+  onSave: (
+    originalItemName: string,
+    newItemName: string,
+    item: Item
+  ) => boolean;
   name: string;
   item: Item;
 }) {
@@ -119,7 +123,11 @@ function ItemRow({
         initialItemName={name}
         initialItemQuantity={item.quantity}
         initialItemTags={item.tags}
-        onSave={onSave}
+        onSave={(newItemName, item) => {
+          if (onSave(name, newItemName, item)) {
+            setIsEditing(false);
+          }
+        }}
         onCancel={() => {
           setIsEditing(false);
         }}
@@ -144,11 +152,16 @@ function getItemRows({
   onSave,
 }: {
   onDelete: (itemName: string) => void;
-  onSave: (itemName: string, item: Item) => void;
+  onSave: (
+    originalItemName: string,
+    newItemName: string,
+    item: Item
+  ) => boolean;
 }) {
   const currentVersion = getOrCreateCurrentVersion()[0];
-  const tableRows = Array.from(currentVersion.items.entries()).map(
-    ([name, item]) => (
+  const tableRows = Array.from(currentVersion.items.entries())
+    .sort(([name1, _item1], [name2, _item2]) => name1.localeCompare(name2))
+    .map(([name, item]) => (
       <ItemRow
         key={name}
         onSave={onSave}
@@ -156,8 +169,7 @@ function getItemRows({
         name={name}
         item={item}
       />
-    )
-  );
+    ));
   return tableRows;
 }
 
@@ -247,7 +259,7 @@ function ItemInputRow({
   const [itemQuantity, setItemQuantity] = useState<string>(
     initialItemQuantity.toString()
   );
-  const [itemTags, setItemTags] = useState<string>(initialItemTags.join());
+  const [itemTags, setItemTags] = useState<string>(initialItemTags.join(", "));
   return (
     <TableRow>
       <TableCell>
@@ -300,21 +312,26 @@ function ItemInputRow({
   );
 }
 
-function writeItemToLocalStorage(name: string, item: Item) {
+function writeItemToLocalStorage(
+  originalItemName: string | null,
+  newItemName: string,
+  item: Item
+): boolean {
   const [currentVersion, currentSha] = getOrCreateCurrentVersion();
   const currentItems = currentVersion.items;
-  console.log(
-    currentItems,
-    name,
-    currentItems.has(name),
-    Array.from(currentItems.entries())
-  );
-  if (currentItems.has(name)) {
-    alert(`Item with name "${name}" already exists.`);
-    return;
+  if (currentItems.has(newItemName) && newItemName != originalItemName) {
+    alert(`Item with name "${newItemName}" already exists.`);
+    return false;
+  } else if (newItemName.length == 0) {
+    alert("Item name cannot be empty.");
+    return false;
   }
-  currentItems.set(name, item);
+  if (originalItemName != null) {
+    currentItems.delete(originalItemName);
+  }
+  currentItems.set(newItemName, item);
   writeVersionToLocalStorage(makeVersion(currentItems, currentSha));
+  return true;
 }
 
 function deleteItemFromLocalStorage(name: string) {
@@ -355,7 +372,7 @@ function App() {
               <TableHead>Item</TableHead>
               <TableHead>Quantity</TableHead>
               <TableHead>Tags</TableHead>
-              <TableHead>Action</TableHead>
+              <TableHead className="w-45">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -365,8 +382,9 @@ function App() {
                 initialItemQuantity={1}
                 initialItemTags={[]}
                 onSave={(name, item) => {
-                  writeItemToLocalStorage(name, item);
-                  setIsAddingItem(false);
+                  if (writeItemToLocalStorage(null, name, item)) {
+                    setIsAddingItem(false);
+                  }
                 }}
                 onCancel={() => {
                   setIsAddingItem(false);
@@ -374,9 +392,14 @@ function App() {
               />
             )}
             {getItemRows({
-              onSave: (name, item) => {
-                writeItemToLocalStorage(name, item);
-                updateCounter();
+              onSave: (originalItemName, newItemName, item) => {
+                if (
+                  writeItemToLocalStorage(originalItemName, newItemName, item)
+                ) {
+                  updateCounter();
+                  return true;
+                }
+                return false;
               },
               onDelete: (name) => {
                 deleteItemFromLocalStorage(name);

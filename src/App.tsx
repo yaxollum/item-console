@@ -56,7 +56,6 @@ const CURRENT_SHA_KEY = "current-sha";
 const VERSION_KEY_PREFIX = "data-version-";
 
 function getOrCreateCurrentVersion(): [Version, string] {
-  window.abcd = getOrCreateCurrentVersion;
   initLocalStorage();
   const currentSha = localStorage.getItem(CURRENT_SHA_KEY)!;
   const currentVersionRaw = localStorage.getItem(
@@ -73,7 +72,13 @@ function getTableRows() {
       <TableRow>
         <TableCell className="font-medium">{name}</TableCell>
         <TableCell>{item.quantity}</TableCell>
-        <TableCell>{item.tags}</TableCell>
+        <TableCell>
+          {item.tags.map((tag) => (
+            <span className="inline-block rounded-full bg-chart-3 py-1 px-2 m-1 text-primary-foreground">
+              {tag}
+            </span>
+          ))}
+        </TableCell>
         <TableCell className="whitespace-nowrap">
           <Button>Edit</Button>
           <Button className="ml-2">Delete</Button>
@@ -229,7 +234,6 @@ function App() {
         <div className="flex m-2">
           <Button
             onClick={() => {
-              console.log("Hello world");
               setIsAddingItem(true);
             }}
           >
@@ -266,6 +270,7 @@ function App() {
                   writeVersionToLocalStorage(
                     makeVersion(currentItems, currentSha)
                   );
+                  setIsAddingItem(false);
                 }}
                 onCancel={() => {
                   setIsAddingItem(false);

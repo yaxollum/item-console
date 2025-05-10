@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { sha256 } from "js-sha256";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Item {
   quantity: number;
@@ -37,9 +38,13 @@ function objectToVersion(o: any): Version {
   };
 }
 
+function itemsToObject(items: Map<string, Item>): Object {
+  return Object.fromEntries(items.entries());
+}
+
 function versionToObject(v: Version): any {
   return {
-    items: Object.fromEntries(v.items.entries()),
+    items: itemsToObject(v.items),
     previousVersion: v.previousVersion,
     timestamp: v.timestamp,
   };
@@ -371,13 +376,45 @@ function deleteItemFromLocalStorage(name: string) {
   writeVersionToLocalStorage(makeVersion(currentItems, currentSha));
 }
 
+function writeItemsToLocalStorage(items: Map<string, Item>): void {
+  const [_currentVersion, currentSha] = getOrCreateCurrentVersion();
+  writeVersionToLocalStorage(makeVersion(items, currentSha));
+}
+
+function JsonMode({
+  initJson,
+  onSave,
+  onCancel,
+}: {
+  initJson: string;
+  onSave: (items: Map<string, Item>) => void;
+  onCancel: () => void;
+}) {
+  const [json, setJson] = useState<string>(initJson);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+  return (
+    <Textarea
+      ref={textareaRef}
+      value={json}
+      onChange={(e) => setJson(e.target.value)}
+      className="h-500"
+    />
+  );
+}
+
+type ConsoleMode = "normal" | "history" | "json";
+
 function App() {
   // dummy state variable to trigger re-render when needed
   const [_, setCounter] = useState<number>(0);
   const [isAddingItem, setIsAddingItem] = useState<boolean>(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [isFilteringByTag, setIsFilteringByTag] = useState<boolean>(false);
-
+  const [consoleMode, setConsoleMode] = useState<ConsoleMode>("normal");
   const updateCounter = () => setCounter((c) => c + 1);
   useEffect(() => {
     window.addEventListener("storage", updateCounter);
@@ -400,109 +437,136 @@ function App() {
           )
         )
       : currentVersionItems;
+
+  const getNormalMode = () => (
+    <>
+      <div className="flex m-2 gap-2">
+        <Button
+          onClick={() => {
+            setIsAddingItem(true);
+          }}
+        >
+          Add item
+        </Button>
+        {!isFilteringByTag && (
+          <Button
+            onClick={() => {
+              setIsFilteringByTag(true);
+              setTagFilter(null);
+            }}
+          >
+            Filter by tag
+          </Button>
+        )}
+        <Button className="ml-auto" onClick={() => setConsoleMode("json")}>
+          Edit JSON
+        </Button>
+        <Button onClick={() => setConsoleMode("history")}>View history</Button>
+      </div>
+      {isFilteringByTag && (
+        <>
+          <div className="flex m-2 gap-2 items-center">
+            <span>Filter by tag:</span>
+            <Select
+              onValueChange={(s) => {
+                setTagFilter(s);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select a tag" />
+              </SelectTrigger>
+              <SelectContent>
+                {currentVersionTags.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => {
+                setIsFilteringByTag(false);
+                setTagFilter(null);
+              }}
+            >
+              Clear filter
+            </Button>
+          </div>
+          {tagFilter != null && (
+            <p className="m-2">
+              Found {filteredItems.size} item
+              {filteredItems.size == 1 ? "" : "s"} with tag "{tagFilter}"
+            </p>
+          )}
+        </>
+      )}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Item</TableHead>
+            <TableHead>Quantity</TableHead>
+            <TableHead>Tags</TableHead>
+            <TableHead className="w-45">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isAddingItem && (
+            <ItemInputRow
+              initialItemName=""
+              initialItemQuantity={1}
+              initialItemTags={[]}
+              onSave={(name, item) => {
+                if (writeItemToLocalStorage(null, name, item)) {
+                  setIsAddingItem(false);
+                }
+              }}
+              onCancel={() => {
+                setIsAddingItem(false);
+              }}
+            />
+          )}
+          {getItemRows({
+            items: filteredItems,
+            onSave: (originalItemName, newItemName, item) => {
+              if (
+                writeItemToLocalStorage(originalItemName, newItemName, item)
+              ) {
+                updateCounter();
+                return true;
+              }
+              return false;
+            },
+            onDelete: (name) => {
+              deleteItemFromLocalStorage(name);
+              updateCounter();
+            },
+          })}
+        </TableBody>
+      </Table>
+    </>
+  );
+
   return (
     <>
       <div className="px-4 py-6 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-center mb-5">Item Console</h1>
-        <div className="flex m-2 gap-2">
-          <Button
-            onClick={() => {
-              setIsAddingItem(true);
+        {consoleMode == "normal" && getNormalMode()}
+        {consoleMode == "json" && (
+          <JsonMode
+            initJson={JSON.stringify(
+              itemsToObject(currentVersionItems),
+              null,
+              2
+            )}
+            onSave={(items: Map<string, Item>) => {
+              writeItemsToLocalStorage(items);
+              setConsoleMode("normal");
             }}
-          >
-            Add item
-          </Button>
-          {!isFilteringByTag && (
-            <Button
-              onClick={() => {
-                setIsFilteringByTag(true);
-                setTagFilter(null);
-              }}
-            >
-              Filter by tag
-            </Button>
-          )}
-        </div>
-        {isFilteringByTag && (
-          <>
-            <div className="flex m-2 gap-2 items-center">
-              <span>Filter by tag:</span>
-              <Select
-                onValueChange={(s) => {
-                  setTagFilter(s);
-                }}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select a tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  {currentVersionTags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={() => {
-                  setIsFilteringByTag(false);
-                  setTagFilter(null);
-                }}
-              >
-                Clear filter
-              </Button>
-            </div>
-            {tagFilter != null && (
-              <p className="m-2">
-                Found {filteredItems.size} item
-                {filteredItems.size == 1 ? "" : "s"} with tag "{tagFilter}"
-              </p>
-            )}
-          </>
+            onCancel={() => {
+              setConsoleMode("normal");
+            }}
+          />
         )}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Item</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Tags</TableHead>
-              <TableHead className="w-45">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isAddingItem && (
-              <ItemInputRow
-                initialItemName=""
-                initialItemQuantity={1}
-                initialItemTags={[]}
-                onSave={(name, item) => {
-                  if (writeItemToLocalStorage(null, name, item)) {
-                    setIsAddingItem(false);
-                  }
-                }}
-                onCancel={() => {
-                  setIsAddingItem(false);
-                }}
-              />
-            )}
-            {getItemRows({
-              items: filteredItems,
-              onSave: (originalItemName, newItemName, item) => {
-                if (
-                  writeItemToLocalStorage(originalItemName, newItemName, item)
-                ) {
-                  updateCounter();
-                  return true;
-                }
-                return false;
-              },
-              onDelete: (name) => {
-                deleteItemFromLocalStorage(name);
-                updateCounter();
-              },
-            })}
-          </TableBody>
-        </Table>
       </div>
     </>
   );

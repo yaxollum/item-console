@@ -2,6 +2,8 @@
 
 A browser app that lets you track, tag, filter, and version everything you own.
 
+Try it now: [https://item-console.peterye.ca](https://item-console.peterye.ca)
+
 ## Features
 
 - **Local storage**: All your data is saved in your browser's `localStorage` - no accounts, 100% private.

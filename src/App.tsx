@@ -403,10 +403,12 @@ function parseJson(json: string): JsonParseResult {
     const obj = JSON.parse(json);
     const schema = z.record(
       z.string(),
-      z.object({
-        quantity: z.number(),
-        tags: z.array(z.string()),
-      })
+      z
+        .object({
+          quantity: z.number(),
+          tags: z.array(z.string()),
+        })
+        .strict()
     );
     return { kind: "ok", items: objectToItems(schema.parse(obj)) };
   } catch (e: any) {

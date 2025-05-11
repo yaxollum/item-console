@@ -30,9 +30,13 @@ interface Version {
   timestamp: string;
 }
 
+function objectToItems(o: any): Map<string, Item> {
+  return new Map(Object.entries(o));
+}
+
 function objectToVersion(o: any): Version {
   return {
-    items: new Map(Object.entries(o.items)),
+    items: objectToItems(o.items),
     previousVersion: o.previousVersion,
     timestamp: o.timestamp,
   };
@@ -397,12 +401,25 @@ function JsonMode({
     textareaRef.current?.focus();
   }, []);
   return (
-    <Textarea
-      ref={textareaRef}
-      value={json}
-      onChange={(e) => setJson(e.target.value)}
-      className="h-500"
-    />
+    <>
+      <div className="flex m-2 gap-2">
+        <Button
+          disabled={json == initJson}
+          onClick={() => {
+            onSave(objectToItems(JSON.parse(json)));
+          }}
+        >
+          Save
+        </Button>
+        <Button onClick={onCancel}>Cancel</Button>
+      </div>
+      <Textarea
+        ref={textareaRef}
+        value={json}
+        onChange={(e) => setJson(e.target.value)}
+        className="h-500"
+      />
+    </>
   );
 }
 

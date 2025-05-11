@@ -748,7 +748,7 @@ function App() {
             {allVersionsChanges
               .sort((a, b) => b[1].timestamp.localeCompare(a[1].timestamp))
               .map(([version_sha, version, changes]) => (
-                <TableRow>
+                <TableRow key={version_sha}>
                   {version_sha == currentVersionSha ? (
                     <TableCell className="font-bold">
                       {version_sha.slice(0, 7)} (current)
@@ -765,8 +765,8 @@ function App() {
                       "(no changes)"
                     ) : (
                       <ul>
-                        {changes.map((c) => (
-                          <li>{versionDiffToString(c)}</li>
+                        {changes.map((c, idx) => (
+                          <li key={idx}>{versionDiffToString(c)}</li>
                         ))}
                       </ul>
                     )}

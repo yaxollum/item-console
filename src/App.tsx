@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { sha256 } from "js-sha256";
 import { Textarea } from "@/components/ui/textarea";
+import { z, ZodError } from "zod";
 
 interface Item {
   quantity: number;
@@ -385,6 +386,40 @@ function writeItemsToLocalStorage(items: Map<string, Item>): void {
   writeVersionToLocalStorage(makeVersion(items, currentSha));
 }
 
+interface JsonParseOk {
+  kind: "ok";
+  items: Map<string, Item>;
+}
+
+interface JsonParseError {
+  kind: "error";
+  msg: string;
+}
+
+type JsonParseResult = JsonParseOk | JsonParseError;
+
+function parseJson(json: string): JsonParseResult {
+  try {
+    const obj = JSON.parse(json);
+    const schema = z.record(
+      z.string(),
+      z.object({
+        quantity: z.number(),
+        tags: z.array(z.string()),
+      })
+    );
+    return { kind: "ok", items: objectToItems(schema.parse(obj)) };
+  } catch (e: any) {
+    if (e instanceof ZodError) {
+      return {
+        kind: "error",
+        msg: `JSON schema errors: ${e}`,
+      };
+    }
+    return { kind: "error", msg: e.toString() };
+  }
+}
+
 function JsonMode({
   initJson,
   onSave,
@@ -395,28 +430,42 @@ function JsonMode({
   onCancel: () => void;
 }) {
   const [json, setJson] = useState<string>(initJson);
+  const [jsonError, setJsonError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
   return (
     <>
       <div className="flex m-2 gap-2">
         <Button
-          disabled={json == initJson}
+          disabled={json == initJson || jsonError != null}
           onClick={() => {
-            onSave(objectToItems(JSON.parse(json)));
+            const parseResult = parseJson(json);
+            if (parseResult.kind == "ok") {
+              onSave(parseResult.items);
+            }
           }}
         >
           Save
         </Button>
         <Button onClick={onCancel}>Cancel</Button>
       </div>
+      {jsonError != null && <p className="m-2 text-destructive">{jsonError}</p>}
       <Textarea
         ref={textareaRef}
         value={json}
-        onChange={(e) => setJson(e.target.value)}
+        onChange={(e) => {
+          const parseResult = parseJson(e.target.value);
+          if (parseResult.kind == "error") {
+            setJsonError(parseResult.msg);
+          } else {
+            setJsonError(null);
+          }
+          setJson(e.target.value);
+        }}
         className="h-500"
       />
     </>

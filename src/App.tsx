@@ -737,11 +737,11 @@ function App() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Version</TableHead>
-              <TableHead>Previous version</TableHead>
-              <TableHead className="w-50">Timestamp</TableHead>
+              <TableHead className="w-0">Version</TableHead>
+              <TableHead className="w-0">Previous version</TableHead>
+              <TableHead className="w-45">Timestamp</TableHead>
               <TableHead>Changes</TableHead>
-              <TableHead className="w-25">Action</TableHead>
+              <TableHead className="w-0">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -772,7 +772,13 @@ function App() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button disabled={version_sha == currentVersionSha}>
+                    <Button
+                      disabled={version_sha == currentVersionSha}
+                      onClick={() => {
+                        localStorage.setItem(CURRENT_SHA_KEY, version_sha);
+                        setConsoleMode("normal");
+                      }}
+                    >
                       Restore
                     </Button>
                   </TableCell>

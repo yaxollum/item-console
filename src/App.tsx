@@ -195,7 +195,7 @@ function getAllVersions(): Map<string, Version> {
   return new Map(
     Object.entries(localStorage).flatMap(([k, v]: [string, string]) => {
       if (k.startsWith(VERSION_KEY_PREFIX)) {
-        return [[k, stringToVersion(v)]];
+        return [[k.slice(VERSION_KEY_PREFIX.length), stringToVersion(v)]];
       } else {
         return [];
       }
@@ -250,12 +250,10 @@ function initLocalStorage(): void {
     // set it to the version with the latest timestamp
     localStorage.setItem(
       CURRENT_SHA_KEY,
-      Array.from(allVersions.entries())
-        .sort(
-          ([_k1, v1], [_k2, v2]) =>
-            Date.parse(v1.timestamp) - Date.parse(v2.timestamp)
-        )[0][0]
-        .slice(VERSION_KEY_PREFIX.length)
+      Array.from(allVersions.entries()).sort(
+        ([_k1, v1], [_k2, v2]) =>
+          Date.parse(v1.timestamp) - Date.parse(v2.timestamp)
+      )[0][0]
     );
   }
 }
@@ -491,7 +489,8 @@ function App() {
     };
   }, []);
 
-  const currentVersionItems = getOrCreateCurrentVersion()[0].items;
+  const [currentVersionObj, currentVersionSha] = getOrCreateCurrentVersion();
+  const currentVersionItems = currentVersionObj.items;
   const currentVersionTags = Array.from(
     new Set(
       Array.from(currentVersionItems.values()).flatMap((item) => item.tags)
@@ -614,6 +613,51 @@ function App() {
     </>
   );
 
+  const formatTime = (t: string) => new Date(t).toLocaleString();
+  const getHistoryMode = () => (
+    <>
+      <div className="flex m-2 gap-2">
+        <Button
+          onClick={() => {
+            setConsoleMode("normal");
+          }}
+        >
+          Exit history view
+        </Button>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-50">Updated</TableHead>
+            <TableHead>Changes</TableHead>
+            <TableHead className="w-25">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from(getAllVersions().entries())
+            .sort((a, b) => b[1].timestamp.localeCompare(a[1].timestamp))
+            .map(([version_sha, version]) => (
+              <TableRow>
+                {version_sha == currentVersionSha ? (
+                  <TableCell className="font-bold">
+                    {formatTime(version.timestamp)} (current version)
+                  </TableCell>
+                ) : (
+                  <TableCell>{formatTime(version.timestamp)}</TableCell>
+                )}
+                <TableCell>hello</TableCell>
+                <TableCell>
+                  <Button disabled={version_sha == currentVersionSha}>
+                    Restore
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+        </TableBody>
+      </Table>
+    </>
+  );
+
   return (
     <>
       <div className="px-4 py-6 sm:px-6 lg:px-8">
@@ -635,6 +679,7 @@ function App() {
             }}
           />
         )}
+        {consoleMode == "history" && getHistoryMode()}
       </div>
     </>
   );

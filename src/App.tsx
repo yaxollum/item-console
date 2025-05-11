@@ -472,6 +472,98 @@ function JsonMode({
   );
 }
 
+interface VersionDiffCreatedItem {
+  kind: "created item";
+  itemName: string;
+}
+
+interface VersionDiffDeletedItem {
+  kind: "deleted item";
+  itemName: string;
+}
+
+interface VersionDiffModifiedTags {
+  kind: "modified tags";
+  itemName: string;
+  oldTags: string[];
+  newTags: string[];
+}
+
+interface VersionDiffModifiedQuantity {
+  kind: "modified quantity";
+  itemName: string;
+  oldQuantity: number;
+  newQuantity: number;
+}
+
+type VersionDiff =
+  | VersionDiffCreatedItem
+  | VersionDiffDeletedItem
+  | VersionDiffModifiedTags
+  | VersionDiffModifiedQuantity;
+
+function versionDiffToString(d: VersionDiff): string {
+  switch (d.kind) {
+    case "created item":
+      return `Created item "${d.itemName}"`;
+    case "deleted item":
+      return `Deleted item "${d.itemName}"`;
+    case "modified tags":
+      return `Modified tags on item "${d.itemName}" from ${JSON.stringify(
+        d.oldTags
+      )} to ${JSON.stringify(d.newTags)}`;
+    case "modified quantity":
+      return `Modified quantity of item "${d.itemName}" from ${d.oldQuantity} to ${d.newQuantity}`;
+  }
+}
+function compareItems(
+  itemName: string,
+  current: Item,
+  prev: Item
+): VersionDiff[] {
+  const changes: VersionDiff[] = [];
+  if (JSON.stringify(current.tags) != JSON.stringify(prev.tags)) {
+    changes.push({
+      kind: "modified tags",
+      itemName,
+      oldTags: prev.tags,
+      newTags: current.tags,
+    });
+  }
+  if (current.quantity != prev.quantity) {
+    changes.push({
+      kind: "modified quantity",
+      itemName,
+      oldQuantity: prev.quantity,
+      newQuantity: current.quantity,
+    });
+  }
+  return changes;
+}
+
+function compareVersionItems(
+  current: Map<string, Item>,
+  prev: Map<string, Item>
+): VersionDiff[] {
+  const currentKeys = new Set(current.keys());
+  const prevKeys = new Set(prev.keys());
+  const commonKeys = Array.from(currentKeys).filter((k) => prevKeys.has(k));
+  const createdKeys = Array.from(currentKeys).filter((k) => !prevKeys.has(k));
+  const deletedKeys = Array.from(prevKeys).filter((k) => !currentKeys.has(k));
+  const changes1: VersionDiff[] = createdKeys.map((k) => ({
+    kind: "created item",
+    itemName: k,
+  }));
+  const changes2: VersionDiff[] = deletedKeys.map((k) => ({
+    kind: "deleted item",
+    itemName: k,
+  }));
+  const changes3: VersionDiff[] = commonKeys.flatMap((k) =>
+    compareItems(k, current.get(k)!, prev.get(k)!)
+  );
+  return changes1.concat(changes2).concat(changes3);
+}
+
 type ConsoleMode = "normal" | "history" | "json";
 
 function App() {
@@ -614,49 +706,76 @@ function App() {
   );
 
   const formatTime = (t: string) => new Date(t).toLocaleString();
-  const getHistoryMode = () => (
-    <>
-      <div className="flex m-2 gap-2">
-        <Button
-          onClick={() => {
-            setConsoleMode("normal");
-          }}
-        >
-          Exit history view
-        </Button>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-50">Updated</TableHead>
-            <TableHead>Changes</TableHead>
-            <TableHead className="w-25">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from(getAllVersions().entries())
-            .sort((a, b) => b[1].timestamp.localeCompare(a[1].timestamp))
-            .map(([version_sha, version]) => (
-              <TableRow>
-                {version_sha == currentVersionSha ? (
-                  <TableCell className="font-bold">
-                    {formatTime(version.timestamp)} (current version)
+  const getHistoryMode = () => {
+    const allVersions = getAllVersions();
+    const allVersionsChanges: [string, Version, VersionDiff[]][] = Array.from(
+      allVersions.entries()
+    ).map(([version_sha, version]) => {
+      const prevVersion: Version | null =
+        version.previousVersion != null
+          ? allVersions.get(version.previousVersion)!
+          : null;
+      const changes: VersionDiff[] =
+        prevVersion != null
+          ? compareVersionItems(version.items, prevVersion.items)
+          : [];
+      return [version_sha, version, changes];
+    });
+
+    return (
+      <>
+        <div className="flex m-2 gap-2">
+          <Button
+            onClick={() => {
+              setConsoleMode("normal");
+            }}
+          >
+            Exit history view
+          </Button>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-50">Updated</TableHead>
+              <TableHead>Changes</TableHead>
+              <TableHead className="w-25">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {allVersionsChanges
+              .sort((a, b) => b[1].timestamp.localeCompare(a[1].timestamp))
+              .map(([version_sha, version, changes]) => (
+                <TableRow>
+                  {version_sha == currentVersionSha ? (
+                    <TableCell className="font-bold">
+                      {formatTime(version.timestamp)} (current version)
+                    </TableCell>
+                  ) : (
+                    <TableCell>{formatTime(version.timestamp)}</TableCell>
+                  )}
+                  <TableCell>
+                    {changes.length == 0 ? (
+                      "(no changes)"
+                    ) : (
+                      <ul>
+                        {changes.map((c) => (
+                          <li>{versionDiffToString(c)}</li>
+                        ))}
+                      </ul>
+                    )}
                   </TableCell>
-                ) : (
-                  <TableCell>{formatTime(version.timestamp)}</TableCell>
-                )}
-                <TableCell>hello</TableCell>
-                <TableCell>
-                  <Button disabled={version_sha == currentVersionSha}>
-                    Restore
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-        </TableBody>
-      </Table>
-    </>
-  );
+                  <TableCell>
+                    <Button disabled={version_sha == currentVersionSha}>
+                      Restore
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      </>
+    );
+  };
 
   return (
     <>

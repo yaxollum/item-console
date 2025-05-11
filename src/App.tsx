@@ -503,15 +503,17 @@ type VersionDiff =
   | VersionDiffModifiedQuantity;
 
 function versionDiffToString(d: VersionDiff): string {
+  const formatTags = (tags: string[]) =>
+    `[${tags.map((t) => JSON.stringify(t)).join(", ")}]`;
   switch (d.kind) {
     case "created item":
       return `Created item "${d.itemName}"`;
     case "deleted item":
       return `Deleted item "${d.itemName}"`;
     case "modified tags":
-      return `Modified tags on item "${d.itemName}" from ${JSON.stringify(
+      return `Modified tags on item "${d.itemName}" from ${formatTags(
         d.oldTags
-      )} to ${JSON.stringify(d.newTags)}`;
+      )} to ${formatTags(d.newTags)}`;
     case "modified quantity":
       return `Modified quantity of item "${d.itemName}" from ${d.oldQuantity} to ${d.newQuantity}`;
   }
@@ -708,19 +710,18 @@ function App() {
   const formatTime = (t: string) => new Date(t).toLocaleString();
   const getHistoryMode = () => {
     const allVersions = getAllVersions();
-    const allVersionsChanges: [string, Version, VersionDiff[]][] = Array.from(
-      allVersions.entries()
-    ).map(([version_sha, version]) => {
-      const prevVersion: Version | null =
-        version.previousVersion != null
-          ? allVersions.get(version.previousVersion)!
-          : null;
-      const changes: VersionDiff[] =
-        prevVersion != null
-          ? compareVersionItems(version.items, prevVersion.items)
-          : [];
-      return [version_sha, version, changes];
-    });
+    const allVersionsChanges: [string, Version, VersionDiff[] | null][] =
+      Array.from(allVersions.entries()).map(([version_sha, version]) => {
+        const prevVersion: Version | null =
+          version.previousVersion != null
+            ? allVersions.get(version.previousVersion) ?? null
+            : null;
+        const changes: VersionDiff[] | null =
+          prevVersion != null
+            ? compareVersionItems(version.items, prevVersion.items)
+            : null;
+        return [version_sha, version, changes];
+      });
 
     return (
       <>
@@ -736,7 +737,9 @@ function App() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-50">Updated</TableHead>
+              <TableHead>Version</TableHead>
+              <TableHead>Previous version</TableHead>
+              <TableHead className="w-50">Timestamp</TableHead>
               <TableHead>Changes</TableHead>
               <TableHead className="w-25">Action</TableHead>
             </TableRow>
@@ -748,13 +751,17 @@ function App() {
                 <TableRow>
                   {version_sha == currentVersionSha ? (
                     <TableCell className="font-bold">
-                      {formatTime(version.timestamp)} (current version)
+                      {version_sha.slice(0, 7)} (current)
                     </TableCell>
                   ) : (
-                    <TableCell>{formatTime(version.timestamp)}</TableCell>
+                    <TableCell>{version_sha.slice(0, 7)}</TableCell>
                   )}
+                  <TableCell>{version.previousVersion?.slice(0, 7)}</TableCell>
+                  <TableCell>{formatTime(version.timestamp)}</TableCell>
                   <TableCell>
-                    {changes.length == 0 ? (
+                    {changes == null ? (
+                      "(previous version not found)"
+                    ) : changes.length == 0 ? (
                       "(no changes)"
                     ) : (
                       <ul>
